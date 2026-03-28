@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="description" content="Book Collection Indexer - Scan and catalog your book collection">
+  <title>BookScan - Book Collection Indexer</title>
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="apple-touch-icon" href="img/logo.png">
+  <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    :root {
+      --primary: #2563eb;
+      --secondary: #10b981;
+      --background: #f8fafc;
+      --surface: #ffffff;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --border: #e2e8f0;
+      --error: #ef4444;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--background);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+    
+    header {
+      background: var(--surface);
+      padding: 60px 20px 20px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      text-align: center;
+    }
+    
+    .app-logo {
+      height: 50px;
+      margin-bottom: 10px;
+    }
+    
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+    }
+    
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    
+    .container {
+      padding: 20px;
+    }
+    
+    .card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 14px 24px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      margin: 8px 0;
+    }
+    
+    .btn:active {
+      opacity: 0.9;
+    }
+    
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--primary);
+      border: 2px solid var(--primary);
+    }
+    
+    .btn-danger {
+      background: var(--error);
+    }
+    
+    .btn-success {
+      background: var(--secondary);
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    input, select, textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 12px;
+      background: var(--surface);
+    }
+    
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+    
+    .form-group {
+      margin-bottom: 16px;
+    }
+    
+    .required::after {
+      content: ' *';
+      color: var(--error);
+    }
+    
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    
+    .book-item {
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    
+    .book-cover {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: #e2e8f0;
+    }
+    
+    .book-info {
+      padding: 12px;
+    }
+    
+    .book-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    
+    .book-author {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    
+    .tabs {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-around;
+      padding: 12px;
+      z-index: 100;
+    }
+    
+    .tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+    
+    .tab.active {
+      color: var(--primary);
+    }
+    
+    .tab-icon {
+      font-size: 24px;
+      margin-bottom: 4px;
+    }
+    
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 200;
+      overflow-y: auto;
+    }
+    
+    .modal.active {
+      display: block;
+    }
+    
+    .modal-content {
+      background: var(--surface);
+      margin: 20px;
+      border-radius: 16px;
+      padding: 20px;
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: var(--text-secondary);
+    }
+    
+    .step-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    
+    .step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 1;
+    }
+    
+    .step-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    
+    .step.active .step-circle {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .step.completed .step-circle {
+      background: var(--secondary);
+      color: white;
+    }
+    
+    .step-label {
+      font-size: 11px;
+      margin-top: 4px;
+      color: var(--text-secondary);
+    }
+    
+    .step.active .step-label {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    
+    .step-line {
+      position: absolute;
+      top: 14px;
+      height: 2px;
+      background: var(--border);
+      z-index: 0;
+    }
+    
+    .camera-container {
+      position: relative;
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      aspect-ratio: 3/4;
+    }
+    
+    #camera {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    #camera-video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .camera-frame {
+      position: absolute;
+      border: 3px solid var(--primary);
+      border-radius: 12px;
+      pointer-events: none;
+    }
+    
+    .scanner-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 280px;
+      height: 120px;
+      border: 3px solid var(--primary);
+      border-radius: 12px;
+    }
+    
+    .preview-image {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .image-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .image-preview {
+      aspect-ratio: 3/4;
+      background: #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    .image-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .checkbox-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    
+    .checkbox-item {
+      padding: 8px 16px;
+      border-radius: 20px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      font-size: 14px;
+      cursor: pointer;
+    }
+    
+    .checkbox-item.selected {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--text);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      z-index: 300;
+    }
+    
+    .toast.show {
+      opacity: 1;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+    
+    .empty-state h3 {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    
+    .loading {
+      display: flex;
+      justify-content: center;
+      padding: 40px;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .search-box {
+      position: relative;
+    }
+    
+    .search-box input {
+      padding-left: 40px;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      font-size: 18px;
+    }
+    
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    
+    .stat {
+      flex: 1;
+      background: var(--surface);
+      padding: 16px;
+      border-radius: 12px;
+      text-align: center;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--primary);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    
+    .language-options {
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    
+    .language-option {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    
+    .language-option:last-child {
+      border-bottom: none;
+    }
+    
+    .language-option.selected {
+      background: #eff6ff;
+      color: var(--primary);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="img/logo.png" alt="BookScan" class="app-logo" id="app-logo">
+    <h1 id="page-title">My Collection</h1>
+    <p class="subtitle" id="page-subtitle">0 books in your collection</p>
+  </header>
+  
+  <main class="container" id="main-content">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="total-books">0</div>
+        <div class="stat-label">Total Books</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="total-value">$0</div>
+        <div class="stat-label">Collection Value</div>
+      </div>
+    </div>
+    
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search by title, author, or ISBN...">
+    </div>
+    
+    <div class="book-grid" id="book-grid"></div>
+    
+    <div class="empty-state" id="empty-state">
+      <h3>No Books Yet</h3>
+      <p>Tap the "Add Book" tab to scan your first book</p>
+    </div>
+  </main>
+  
+  <div class="tabs">
+    <div class="tab active" data-tab="home">
+      <span class="tab-icon">📚</span>
+      <span>Collection</span>
+    </div>
+    <div class="tab" data-tab="add">
+      <span class="tab-icon">📷</span>
+      <span>Add Book</span>
+    </div>
+    <div class="tab" data-tab="export">
+      <span class="tab-icon">📤</span>
+      <span>Export</span>
+    </div>
+  </div>
+  
+  <!-- Capture Modal -->
+  <div class="modal" id="capture-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="capture-title">Capture Images</h2>
+        <button class="close-btn" onclick="closeCaptureModal()">×</button>
+      </div>
+      
+      <div class="step-indicator">
+        <div class="step-line" style="left: 16.66%; right: 50%;"></div>
+        <div class="step active" data-step="1">
+          <div class="step-circle">1</div>
+          <span class="step-label">Front</span>
+        </div>
+        <div class="step" data-step="2">
+          <div class="step-circle">2</div>
+          <span class="step-label">Back</span>
+        </div>
+        <div class="step" data-step="3">
+          <div class="step-circle">3</div>
+          <span class="step-label">Tech</span>
+        </div>
+      </div>
+      
+      <div id="capture-content"></div>
+    </div>
+  </div>
+  
+  <!-- Details Modal -->
+  <div class="modal" id="details-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Book Details</h2>
+        <button class="close-btn" onclick="closeDetailsModal()">×</button>
+      </div>
+      
+      <div class="image-grid" id="details-images"></div>
+      
+      <form id="details-form">
+        <div class="form-group">
+          <label class="required">Title</label>
+          <input type="text" id="book-title" required>
+        </div>
+        
+        <div class="form-group">
+          <label>Original Title (non-Latin)</label>
+          <input type="text" id="book-original-title">
+        </div>
+        
+        <div class="form-group">
+          <label>Author(s)</label>
+          <input type="text" id="book-authors" placeholder="Comma separated">
+        </div>
+        
+        <div class="form-group">
+          <label>Original Author(s)</label>
+          <input type="text" id="book-original-authors">
+        </div>
+        
+        <div class="form-group">
+          <label>ISBN</label>
+          <input type="text" id="book-isbn">
+        </div>
+        
+        <div class="form-group">
+          <label>Publisher</label>
+          <input type="text" id="book-publisher">
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <div class="form-group" style="flex: 1;">
+            <label>Year</label>
+            <input type="number" id="book-year">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>Pages</label>
+            <input type="number" id="book-pages">
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Language</label>
+          <select id="book-language">
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="ru">Russian</option>
+            <option value="zh">Chinese</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+            <option value="ar">Arabic</option>
+            <option value="hi">Hindi</option>
+            <option value="th">Thai</option>
+            <option value="vi">Vietnamese</option>
+            <option value="nl">Dutch</option>
+            <option value="pl">Polish</option>
+            <option value="tr">Turkish</option>
+            <option value="he">Hebrew</option>
+            <option value="sv">Swedish</option>
+            <option value="da">Danish</option>
+            <option value="fi">Finnish</option>
+            <option value="no">Norwegian</option>
+            <option value="cs">Czech</option>
+            <option value="hu">Hungarian</option>
+            <option value="el">Greek</option>
+            <option value="id">Indonesian</option>
+            <option value="ms">Malay</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label>Original Language Text</label>
+          <textarea id="book-original-text" rows="2" placeholder="Original title/description in native script"></textarea>
+        </div>
+        
+        <div class="form-group">
+          <label>Condition</label>
+          <div class="checkbox-group" id="condition-options">
+            <div class="checkbox-item" data-value="New">New</div>
+            <div class="checkbox-item selected" data-value="Like New">Like New</div>
+            <div class="checkbox-item" data-value="Very Good">Very Good</div>
+            <div class="checkbox-item" data-value="Good">Good</div>
+            <div class="checkbox-item" data-value="Fair">Fair</div>
+            <div class="checkbox-item" data-value="Poor">Poor</div>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label>Notes</label>
+          <textarea id="book-notes" rows="2"></textarea>
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <div class="form-group" style="flex: 1;">
+            <label>Acquisition Date</label>
+            <input type="date" id="book-acquisition-date">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>Price</label>
+            <input type="number" step="0.01" id="book-price">
+          </div>
+        </div>
+        
+        <input type="hidden" id="book-id">
+        <input type="hidden" id="book-cover-front">
+        <input type="hidden" id="book-cover-back">
+        <input type="hidden" id="book-technical-page">
+        
+        <button type="submit" class="btn" id="save-book-btn">Add to Collection</button>
+        <button type="button" class="btn btn-danger" id="delete-book-btn" style="display: none;" onclick="deleteCurrentBook()">Delete Book</button>
+      </form>
+    </div>
+  </div>
+  
+  <!-- Export Modal -->
+  <div class="modal" id="export-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Export Collection</h2>
+        <button class="close-btn" onclick="closeExportModal()">×</button>
+      </div>
+      
+      <div class="form-group">
+        <label>Export Format</label>
+        <div class="checkbox-group">
+          <div class="checkbox-item" data-export-format="csv">CSV</div>
+          <div class="checkbox-item selected" data-export-format="excel">Excel</div>
+        </div>
+      </div>
+      
+      <div class="form-group">
+        <label>What to Export</label>
+        <div class="checkbox-group">
+          <div class="checkbox-item" data-export-mode="data">Data Only</div>
+          <div class="checkbox-item" data-export-mode="images">Images Only</div>
+          <div class="checkbox-item selected" data-export-mode="both">Both</div>
+        </div>
+      </div>
+      
+      <button class="btn btn-success" onclick="exportData()">Export & Share</button>
+    </div>
+  </div>
+  
+  <div class="toast" id="toast"></div>
+  
+  <!-- Crop Modal -->
+  <div class="modal" id="crop-modal">
+    <div class="modal-content" style="max-width: 95%; padding: 12px;">
+      <div class="modal-header">
+        <h2>Crop Image</h2>
+        <button class="close-btn" onclick="closeCropModal()">×</button>
+      </div>
+      <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 14px;">
+        Drag the corners to select the book area
+      </p>
+      <div id="crop-container" style="position: relative; background: #000; border-radius: 8px; overflow: hidden;">
+        <img id="crop-image" style="width: 100%; display: block;">
+        <div id="crop-overlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); pointer-events: none;"></div>
+        <div id="crop-box" style="position: absolute; border: 2px dashed #2563eb; background: transparent; cursor: move;">
+          <div id="crop-handle-tl" style="position: absolute; top: -8px; left: -8px; width: 16px; height: 16px; background: #2563eb; border-radius: 50%; cursor: nwse-resize;"></div>
+          <div id="crop-handle-tr" style="position: absolute; top: -8px; right: -8px; width: 16px; height: 16px; background: #2563eb; border-radius: 50%; cursor: nesw-resize;"></div>
+          <div id="crop-handle-bl" style="position: absolute; bottom: -8px; left: -8px; width: 16px; height: 16px; background: #2563eb; border-radius: 50%; cursor: nesw-resize;"></div>
+          <div id="crop-handle-br" style="position: absolute; bottom: -8px; right: -8px; width: 16px; height: 16px; background: #2563eb; border-radius: 50%; cursor: nwse-resize;"></div>
+          <div id="crop-handle-move" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 40px; height: 40px; background: rgba(37,99,235,0.3); border-radius: 50%; cursor: move;"></div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 12px; margin-top: 16px;">
+        <button class="btn" onclick="applyCrop()">Apply Crop</button>
+        <button class="btn btn-secondary" onclick="closeCropModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>
