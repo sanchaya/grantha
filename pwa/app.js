@@ -1004,7 +1004,53 @@ function openDetailsForm(prefillData = {}) {
     document.getElementById('book-language').value = prefillData.language || 'en';
   }
   
-  // Auto-extract OCR from captured images (synchronous with await)
+  // Auto-extract OCR from captured images
+  const doOCR = async () => {
+    const isbnField = document.getElementById('book-isbn');
+    const titleField = document.getElementById('book-title');
+    const authorField = document.getElementById('book-authors');
+    const publisherField = document.getElementById('book-publisher');
+    const yearField = document.getElementById('book-year');
+    const pagesField = document.getElementById('book-pages');
+    const notesField = document.getElementById('book-notes');
+    
+    let allText = '';
+
+    // Process all images and collect text
+    const imagesToProcess = [];
+    if (capturedImages.technical) imagesToProcess.push({ data: capturedImages.technical, type: 'technical' });
+    if (capturedImages.back) imagesToProcess.push({ data: capturedImages.back, type: 'back' });
+    if (capturedImages.front) imagesToProcess.push({ data: capturedImages.front, type: 'front' });
+
+    for (const img of imagesToProcess) {
+      const result = await processImageWithOCR(img.data, img.type);
+      if (result && result.text) {
+        allText += `--- ${img.type} ---\n${result.text}\n\n`;
+      }
+    }
+    
+    // Show all extracted text in notes
+    if (allText) {
+      notesField.value = allText.substring(0, 3000);
+    }
+
+    // Try to extract structured data
+    const fullText = allText;
+    const isbn = extractISBN(fullText);
+    const title = extractTitle(fullText);
+    const author = extractAuthor(fullText);
+    const publisher = extractPublisher(fullText);
+    const year = extractYear(fullText);
+    const pages = extractPages(fullText);
+
+    if (isbn) isbnField.value = isbn;
+    if (title) titleField.value = title;
+    if (author) authorField.value = author;
+    if (publisher) publisherField.value = publisher;
+    if (year) yearField.value = year;
+    if (pages) pagesField.value = pages;
+  };
+
   if (!prefillData.id && (capturedImages.technical || capturedImages.back || capturedImages.front)) {
     const form = document.getElementById('details-form');
     const indicator = document.createElement('div');
@@ -1013,51 +1059,14 @@ function openDetailsForm(prefillData = {}) {
     indicator.textContent = 'Extracting text from images...';
     form.insertBefore(indicator, form.firstChild);
 
-    (async () => {
-      const isbnField = document.getElementById('book-isbn');
-      const titleField = document.getElementById('book-title');
-      const authorField = document.getElementById('book-authors');
-      const publisherField = document.getElementById('book-publisher');
-      const yearField = document.getElementById('book-year');
-      const pagesField = document.getElementById('book-pages');
-      const notesField = document.getElementById('book-notes');
-
-      try {
-        // Process technical page first
-        if (capturedImages.technical) {
-          const result = await processImageWithOCR(capturedImages.technical, 'technical');
-          if (result) {
-            if (result.isbn) isbnField.value = result.isbn;
-            if (result.title) titleField.value = result.title;
-            if (result.author) authorField.value = result.author;
-            if (result.publisher) publisherField.value = result.publisher;
-            if (result.year) yearField.value = result.year;
-            if (result.pages) pagesField.value = result.pages;
-            if (result.text) notesField.value = `--- Extracted from Technical Page ---\n${result.text.substring(0, 1500)}`;
-          }
-        }
-
-        // Process back cover for ISBN
-        if (capturedImages.back && !isbnField.value) {
-          const result = await processImageWithOCR(capturedImages.back, 'back');
-          if (result && result.isbn) isbnField.value = result.isbn;
-        }
-
-        // Process front cover for title/author
-        if (capturedImages.front && !titleField.value) {
-          const result = await processImageWithOCR(capturedImages.front, 'front');
-          if (result) {
-            if (result.title) titleField.value = result.title;
-            if (result.author) authorField.value = result.author;
-          }
-        }
-      } catch (err) {
-        console.error('Auto OCR error:', err);
-      } finally {
-        const ind = document.getElementById('ocr-indicator');
-        if (ind) ind.remove();
-      }
-    })();
+    doOCR().then(() => {
+      const ind = document.getElementById('ocr-indicator');
+      if (ind) ind.remove();
+    }).catch(err => {
+      console.error('OCR error:', err);
+      const ind = document.getElementById('ocr-indicator');
+      if (ind) ind.textContent = 'OCR failed - you can enter details manually';
+    });
   }
   
   // Set condition selection

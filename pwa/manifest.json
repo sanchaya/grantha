@@ -1,6 +1,6 @@
 {
-  "name": "BookScan",
-  "short_name": "BookScan",
+  "name": "Grantha",
+  "short_name": "Grantha",
   "description": "Book Collection Indexer - Scan and catalog your book collection",
   "start_url": "/",
   "display": "standalone",
