@@ -370,7 +370,7 @@ function renderCaptureStep() {
       <button class="btn" id="save-book-btn-capture" onclick="saveBookImmediately()">
         ✅ Save Book & Continue
       </button>
-      <button class="btn btn-secondary" onclick="skipCapture('technical')">
+      <button class="btn btn-secondary" onclick="skipCapture('done')">
         Skip / Add Photo Later
       </button>
     `;
@@ -967,7 +967,7 @@ async function skipCapture(nextStep) {
     captureStep = 3;
     renderCaptureStep();
   } else if (nextStep === 'done') {
-    // Save book immediately even if skipping
+    // Skip technical page and save book immediately
     await saveBookImmediately();
   }
 }
