@@ -129,33 +129,47 @@ async function saveBookImmediately() {
 
 async function runOCRInBackground(bookId) {
   try {
+    console.log('Starting background OCR for book:', bookId);
     const books = await getAllBooks();
     const book = books.find(b => b.id === bookId);
-    if (!book) return;
+    if (!book) {
+      console.log('Book not found');
+      return;
+    }
     
     let allText = '';
     
     // Process all captured images
     if (book.technicalPage) {
+      console.log('Processing technical page...');
       const result = await processImageWithOCR(book.technicalPage, 'technical');
+      console.log('Technical OCR result:', result);
       if (result?.text) allText += result.text + '\n';
     }
     if (book.coverBack) {
+      console.log('Processing back cover...');
       const result = await processImageWithOCR(book.coverBack, 'back');
+      console.log('Back OCR result:', result);
       if (result?.text) allText += result.text + '\n';
     }
     if (book.coverFront) {
+      console.log('Processing front cover...');
       const result = await processImageWithOCR(book.coverFront, 'front');
+      console.log('Front OCR result:', result);
       if (result?.text) allText += result.text + '\n';
     }
     
-    // Extract metadata
+    console.log('All extracted text:', allText.substring(0, 500));
+    
+    // Extract metadata - try from all text combined
     const isbn = extractISBN(allText);
     const title = extractTitle(allText);
     const author = extractAuthor(allText);
     const publisher = extractPublisher(allText);
     const year = extractYear(allText);
     const pages = extractPages(allText);
+    
+    console.log('Extracted - ISBN:', isbn, 'Title:', title, 'Author:', author, 'Publisher:', publisher, 'Year:', year, 'Pages:', pages);
     
     // Update book with extracted data
     const updatedBook = {
@@ -173,6 +187,7 @@ async function runOCRInBackground(bookId) {
     
     await saveBook(updatedBook);
     loadBooks();
+    console.log('Book updated with OCR data');
     
   } catch (err) {
     console.error('Background OCR error:', err);
@@ -362,18 +377,7 @@ function renderCaptureStep() {
     if (!isMobile) startCamera();
   } else if (captureStep === 3) {
     title.textContent = 'Capture Technical Page';
-    // Add explicit "Save Book" button
-    content.innerHTML = `
-      <p style="text-align: center; color: var(--text-secondary); margin: 12px 0;">
-        Take a photo of the copyright/ISBN page (optional)
-      </p>
-      <button class="btn" id="save-book-btn-capture" onclick="saveBookImmediately()">
-        ✅ Save Book & Continue
-      </button>
-      <button class="btn btn-secondary" onclick="skipCapture('done')">
-        Skip / Add Photo Later
-      </button>
-    `;
+    content.innerHTML = getStepContent('technical', 'done', true);
     setupFileInput('technical');
     if (!isMobile) startCamera();
   }
@@ -721,12 +725,16 @@ async function initOCR() {
 }
 
 async function extractTextFromImage(imageData) {
+  console.log('extractTextFromImage called');
   if (typeof Tesseract === 'undefined') {
-    console.error('Tesseract is not loaded');
+    console.error('Tesseract is not loaded - library not available');
     return '';
   }
+  console.log('Tesseract available, initializing worker...');
   const worker = await initOCR();
+  console.log('Worker initialized, recognizing image...');
   const result = await worker.recognize(imageData);
+  console.log('Recognition complete, text length:', result.data.text?.length);
   return result.data.text || '';
 }
 
