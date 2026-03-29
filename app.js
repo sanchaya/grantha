@@ -362,7 +362,18 @@ function renderCaptureStep() {
     if (!isMobile) startCamera();
   } else if (captureStep === 3) {
     title.textContent = 'Capture Technical Page';
-    content.innerHTML = getStepContent('technical', 'done', true);
+    // Add explicit "Save Book" button
+    content.innerHTML = `
+      <p style="text-align: center; color: var(--text-secondary); margin: 12px 0;">
+        Take a photo of the copyright/ISBN page (optional)
+      </p>
+      <button class="btn" id="save-book-btn-capture" onclick="saveBookImmediately()">
+        ✅ Save Book & Continue
+      </button>
+      <button class="btn btn-secondary" onclick="skipCapture('technical')">
+        Skip / Add Photo Later
+      </button>
+    `;
     setupFileInput('technical');
     if (!isMobile) startCamera();
   }
@@ -882,15 +893,6 @@ function setupIsbnScanner() {
     };
   }
   
-  const isbnInput = document.getElementById('file-input-isbn');
-  if (isbnInput) {
-    isbnInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        openDetailsForm();
-      }
-    };
-  }
 }
 
 async function startCamera() {
