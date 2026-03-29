@@ -551,7 +551,7 @@
     <img src="img/logo.png" alt="BookScan" class="app-logo" id="app-logo">
     <h1 id="page-title">My Collection</h1>
     <p class="subtitle" id="page-subtitle">0 books in your collection</p>
-    <p class="version">v1.1.1</p>
+    <p class="version">v1.1.2</p>
   </header>
   
   <main class="container" id="main-content">
@@ -748,6 +748,7 @@
         
         <button type="submit" class="btn" id="save-book-btn">Add to Collection</button>
         <button type="button" class="btn btn-danger" id="delete-book-btn" style="display: none;" onclick="deleteCurrentBook()">Delete Book</button>
+        <button type="button" class="btn btn-secondary" id="ocr-btn" style="display: none; margin-top: 12px; width: 100%;" onclick="runOCRFromDetails()">🔄 Run OCR</button>
       </form>
     </div>
   </div>

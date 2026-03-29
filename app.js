@@ -127,7 +127,7 @@ async function saveBookImmediately() {
   runOCRInBackground(bookId);
 }
 
-async function runOCRInBackground(bookId) {
+async function runOCRInBackground(bookId, externalBookData = null) {
   try {
     console.log('Starting background OCR for book:', bookId);
     const books = await getAllBooks();
@@ -137,13 +137,16 @@ async function runOCRInBackground(bookId) {
       return;
     }
     
+    // Use external book data if provided (from form), otherwise use stored data
+    const bookData = externalBookData || book;
+    
     let allText = '';
     let foundISBN = null;
     
     // First, try to extract ISBN from technical page with OCR
-    if (book.technicalPage) {
+    if (bookData.technicalPage) {
       console.log('Processing technical page for ISBN...');
-      const result = await processImageWithOCR(book.technicalPage, 'technical');
+      const result = await processImageWithOCR(bookData.technicalPage, 'technical');
       console.log('Technical OCR result:', result);
       if (result?.text) {
         allText += '=== Technical Page ===\n' + result.text + '\n\n';
@@ -153,9 +156,9 @@ async function runOCRInBackground(bookId) {
     }
     
     // If no ISBN from technical, try back cover
-    if (!foundISBN && book.coverBack) {
+    if (!foundISBN && bookData.coverBack) {
       console.log('Processing back cover for ISBN...');
-      const result = await processImageWithOCR(book.coverBack, 'back');
+      const result = await processImageWithOCR(bookData.coverBack, 'back');
       if (result?.text) {
         allText += '=== Back Cover ===\n' + result.text + '\n\n';
         foundISBN = extractISBN(result.text);
@@ -164,9 +167,9 @@ async function runOCRInBackground(bookId) {
     }
     
     // Process front cover for title/author
-    if (book.coverFront) {
+    if (bookData.coverFront) {
       console.log('Processing front cover...');
-      const result = await processImageWithOCR(book.coverFront, 'front');
+      const result = await processImageWithOCR(bookData.coverFront, 'front');
       if (result?.text) {
         allText += '=== Front Cover ===\n' + result.text + '\n\n';
       }
@@ -1236,62 +1239,71 @@ function openDetailsForm(prefillData = {}) {
     }
   });
   
-  // Add Re-run OCR button
-  const form = document.getElementById('details-form');
-  const existingOcrBtn = document.getElementById('rerun-ocr-btn');
-  if (existingOcrBtn) existingOcrBtn.remove();
-  
-  // Show OCR button for any book with images or for new captures
+  // Show/hide OCR button based on whether there are images
   const hasImages = (capturedImages.front || capturedImages.back || capturedImages.technical) ||
                     (prefillData.coverFront || prefillData.coverBack || prefillData.technicalPage);
   
-  if (hasImages) {
-    console.log('Adding Re-run OCR button, prefillData:', prefillData);
-    const ocrBtn = document.createElement('button');
-    ocrBtn.type = 'button';
-    ocrBtn.id = 'rerun-ocr-btn';
-    ocrBtn.className = 'btn btn-secondary';
-    ocrBtn.style.marginTop = '16px';
-    ocrBtn.style.width = '100%';
-    ocrBtn.textContent = '🔄 Re-run OCR';
-    ocrBtn.onclick = async () => {
-      ocrBtn.textContent = 'Running OCR...';
-      ocrBtn.disabled = true;
-      const bookId = prefillData.id;
-      
-      // Get current form values to preserve them
-      const currentTitle = document.getElementById('book-title').value;
-      const currentAuthors = document.getElementById('book-authors').value;
-      
-      // Run OCR
-      await runOCRInBackground(bookId);
-      
-      // Reload the book to get updated values
-      const books = await getAllBooks();
-      const updatedBook = books.find(b => b.id === bookId);
-      if (updatedBook) {
-        document.getElementById('book-title').value = updatedBook.title || currentTitle;
-        document.getElementById('book-authors').value = updatedBook.authors?.join(', ') || currentAuthors;
-        document.getElementById('book-isbn').value = updatedBook.isbn || '';
-        document.getElementById('book-publisher').value = updatedBook.publisher || '';
-        document.getElementById('book-year').value = updatedBook.publishYear || '';
-        document.getElementById('book-pages').value = updatedBook.pageCount || '';
-        document.getElementById('book-notes').value = updatedBook.notes || '';
-      }
-      
-      ocrBtn.textContent = '✅ OCR Complete';
-      setTimeout(() => {
-        ocrBtn.textContent = '🔄 Re-run OCR';
-        ocrBtn.disabled = false;
-      }, 2000);
-    };
-    form.appendChild(ocrBtn);
-    
-    // If this is a new book with captured images, run OCR immediately
-    if (!prefillData.id && hasImages) {
-      console.log('Running immediate OCR for new book');
-      setTimeout(() => ocrBtn.click(), 500);
+  const ocrBtn = document.getElementById('ocr-btn');
+  if (ocrBtn) {
+    if (hasImages) {
+      ocrBtn.style.display = 'block';
+    } else {
+      ocrBtn.style.display = 'none';
     }
+  }
+  
+  // If this is a new book with captured images, run OCR immediately
+  if (!prefillData.id && hasImages && ocrBtn) {
+    setTimeout(() => {
+      ocrBtn.click();
+    }, 500);
+  }
+}
+
+// Function to run OCR from details page button
+// Function to run OCR from details page button
+async function runOCRFromDetails() {
+  const ocrBtn = document.getElementById('ocr-btn');
+  const bookId = document.getElementById('book-id').value;
+  
+  if (ocrBtn) {
+    ocrBtn.textContent = 'Running OCR...';
+    ocrBtn.disabled = true;
+  }
+  
+  // Get current form values to preserve them
+  const currentTitle = document.getElementById('book-title').value;
+  const currentAuthors = document.getElementById('book-authors').value;
+  
+  // Get images from form (in case they were just captured)
+  const bookData = {
+    technicalPage: document.getElementById('book-technical-page').value,
+    coverBack: document.getElementById('book-cover-back').value,
+    coverFront: document.getElementById('book-cover-front').value
+  };
+  
+  // Run OCR with these images
+  await runOCRInBackground(bookId, bookData);
+  
+  // Reload the book to get updated values
+  const books = await getAllBooks();
+  const updatedBook = books.find(b => b.id === bookId);
+  if (updatedBook) {
+    document.getElementById('book-title').value = updatedBook.title || currentTitle;
+    document.getElementById('book-authors').value = updatedBook.authors?.join(', ') || currentAuthors;
+    document.getElementById('book-isbn').value = updatedBook.isbn || '';
+    document.getElementById('book-publisher').value = updatedBook.publisher || '';
+    document.getElementById('book-year').value = updatedBook.publishYear || '';
+    document.getElementById('book-pages').value = updatedBook.pageCount || '';
+    document.getElementById('book-notes').value = updatedBook.notes || '';
+  }
+  
+  if (ocrBtn) {
+    ocrBtn.textContent = '✅ OCR Complete';
+    setTimeout(() => {
+      ocrBtn.textContent = '🔄 Run OCR';
+      ocrBtn.disabled = false;
+    }, 2000);
   }
 }
 
