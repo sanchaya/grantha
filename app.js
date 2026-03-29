@@ -138,45 +138,95 @@ async function runOCRInBackground(bookId) {
     }
     
     let allText = '';
+    let foundISBN = null;
     
-    // Process all captured images
+    // First, try to extract ISBN from technical page with OCR
     if (book.technicalPage) {
-      console.log('Processing technical page...');
+      console.log('Processing technical page for ISBN...');
       const result = await processImageWithOCR(book.technicalPage, 'technical');
       console.log('Technical OCR result:', result);
-      if (result?.text) allText += result.text + '\n';
+      if (result?.text) {
+        allText += '=== Technical Page ===\n' + result.text + '\n\n';
+        foundISBN = extractISBN(result.text);
+        console.log('ISBN from technical:', foundISBN);
+      }
     }
-    if (book.coverBack) {
-      console.log('Processing back cover...');
+    
+    // If no ISBN from technical, try back cover
+    if (!foundISBN && book.coverBack) {
+      console.log('Processing back cover for ISBN...');
       const result = await processImageWithOCR(book.coverBack, 'back');
-      console.log('Back OCR result:', result);
-      if (result?.text) allText += result.text + '\n';
+      if (result?.text) {
+        allText += '=== Back Cover ===\n' + result.text + '\n\n';
+        foundISBN = extractISBN(result.text);
+        console.log('ISBN from back:', foundISBN);
+      }
     }
+    
+    // Process front cover for title/author
     if (book.coverFront) {
       console.log('Processing front cover...');
       const result = await processImageWithOCR(book.coverFront, 'front');
-      console.log('Front OCR result:', result);
-      if (result?.text) allText += result.text + '\n';
+      if (result?.text) {
+        allText += '=== Front Cover ===\n' + result.text + '\n\n';
+      }
     }
     
     console.log('All extracted text:', allText.substring(0, 500));
     
-    // Extract metadata - try from all text combined
-    const isbn = extractISBN(allText);
-    const title = extractTitle(allText);
-    const author = extractAuthor(allText);
-    const publisher = extractPublisher(allText);
-    const year = extractYear(allText);
-    const pages = extractPages(allText);
+    // Try Open Library API first if we have ISBN
+    let title = null;
+    let author = null;
+    let publisher = null;
+    let year = null;
+    let pages = null;
     
-    console.log('Extracted - ISBN:', isbn, 'Title:', title, 'Author:', author, 'Publisher:', publisher, 'Year:', year, 'Pages:', pages);
+    if (foundISBN) {
+      console.log('Looking up ISBN in Open Library:', foundISBN);
+      try {
+        const response = await fetch(
+          `https://openlibrary.org/api/books?bibkeys=ISBN:${foundISBN}&format=json&jscmd=data`
+        );
+        const data = await response.json();
+        const bookData = data[`ISBN:${foundISBN}`];
+        if (bookData) {
+          title = bookData.title;
+          author = bookData.authors?.map(a => a.name).join(', ');
+          publisher = bookData.publishers?.[0]?.name;
+          year = bookData.publish_date ? parseInt(bookData.publish_date.match(/\d{4}/)?.[0]) : null;
+          pages = bookData.number_of_pages;
+          console.log('Open Library data:', { title, author, publisher, year, pages });
+        }
+      } catch (err) {
+        console.error('Open Library lookup failed:', err);
+      }
+    }
+    
+    // If Open Library didn't work, try OCR extraction
+    if (!title) {
+      title = extractTitle(allText);
+    }
+    if (!author) {
+      author = extractAuthor(allText);
+    }
+    if (!publisher) {
+      publisher = extractPublisher(allText);
+    }
+    if (!year) {
+      year = extractYear(allText);
+    }
+    if (!pages) {
+      pages = extractPages(allText);
+    }
+    
+    console.log('Final extracted - ISBN:', foundISBN, 'Title:', title, 'Author:', author);
     
     // Update book with extracted data
     const updatedBook = {
       ...book,
-      isbn: isbn || null,
+      isbn: foundISBN || null,
       title: title || book.title,
-      authors: author ? [author] : book.authors,
+      authors: author ? author.split(',').map(a => a.trim()) : book.authors,
       publisher: publisher || null,
       publishYear: year,
       pageCount: pages,
