@@ -1369,6 +1369,16 @@ async function exportData() {
   closeExportModal();
 }
 
+// Header scroll handling
+window.addEventListener('scroll', () => {
+  const header = document.querySelector('header');
+  if (window.scrollY > 50) {
+    header.classList.add('compact');
+  } else {
+    header.classList.remove('compact');
+  }
+});
+
 // Initialize app
 async function init() {
   await initDB();
