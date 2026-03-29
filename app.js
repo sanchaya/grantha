@@ -1241,7 +1241,12 @@ function openDetailsForm(prefillData = {}) {
   const existingOcrBtn = document.getElementById('rerun-ocr-btn');
   if (existingOcrBtn) existingOcrBtn.remove();
   
-  if (prefillData.id && (prefillData.coverFront || prefillData.coverBack || prefillData.technicalPage)) {
+  // Show OCR button for any book with images or for new captures
+  const hasImages = (capturedImages.front || capturedImages.back || capturedImages.technical) ||
+                    (prefillData.coverFront || prefillData.coverBack || prefillData.technicalPage);
+  
+  if (hasImages) {
+    console.log('Adding Re-run OCR button, prefillData:', prefillData);
     const ocrBtn = document.createElement('button');
     ocrBtn.type = 'button';
     ocrBtn.id = 'rerun-ocr-btn';
@@ -1281,6 +1286,12 @@ function openDetailsForm(prefillData = {}) {
       }, 2000);
     };
     form.appendChild(ocrBtn);
+    
+    // If this is a new book with captured images, run OCR immediately
+    if (!prefillData.id && hasImages) {
+      console.log('Running immediate OCR for new book');
+      setTimeout(() => ocrBtn.click(), 500);
+    }
   }
 }
 
