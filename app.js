@@ -1109,16 +1109,21 @@ function openDetailsForm(prefillData = {}) {
   document.getElementById('capture-modal').classList.remove('active');
   document.getElementById('details-modal').classList.add('active');
   
-  // Set images
+  // Get images from captured or from prefillData (when editing)
+  const frontImage = capturedImages.front || prefillData.coverFront || '';
+  const backImage = capturedImages.back || prefillData.coverBack || '';
+  const techImage = capturedImages.technical || prefillData.technicalPage || '';
+  
+  // Set images in UI
   document.getElementById('details-images').innerHTML = `
-    ${capturedImages.front ? `<div class="image-preview"><img src="${capturedImages.front}"></div>` : ''}
-    ${capturedImages.back ? `<div class="image-preview"><img src="${capturedImages.back}"></div>` : ''}
-    ${capturedImages.technical ? `<div class="image-preview"><img src="${capturedImages.technical}"></div>` : ''}
+    ${frontImage ? `<div class="image-preview"><img src="${frontImage}"><span>Front</span></div>` : ''}
+    ${backImage ? `<div class="image-preview"><img src="${backImage}"><span>Back</span></div>` : ''}
+    ${techImage ? `<div class="image-preview"><img src="${techImage}"><span>Technical</span></div>` : ''}
   `;
   
-  document.getElementById('book-cover-front').value = capturedImages.front || '';
-  document.getElementById('book-cover-back').value = capturedImages.back || '';
-  document.getElementById('book-technical-page').value = capturedImages.technical || '';
+  document.getElementById('book-cover-front').value = frontImage;
+  document.getElementById('book-cover-back').value = backImage;
+  document.getElementById('book-technical-page').value = techImage;
   
   // Reset form
   document.getElementById('details-form').reset();
@@ -1230,6 +1235,53 @@ function openDetailsForm(prefillData = {}) {
       item.classList.add('selected');
     }
   });
+  
+  // Add Re-run OCR button
+  const form = document.getElementById('details-form');
+  const existingOcrBtn = document.getElementById('rerun-ocr-btn');
+  if (existingOcrBtn) existingOcrBtn.remove();
+  
+  if (prefillData.id && (prefillData.coverFront || prefillData.coverBack || prefillData.technicalPage)) {
+    const ocrBtn = document.createElement('button');
+    ocrBtn.type = 'button';
+    ocrBtn.id = 'rerun-ocr-btn';
+    ocrBtn.className = 'btn btn-secondary';
+    ocrBtn.style.marginTop = '16px';
+    ocrBtn.style.width = '100%';
+    ocrBtn.textContent = '🔄 Re-run OCR';
+    ocrBtn.onclick = async () => {
+      ocrBtn.textContent = 'Running OCR...';
+      ocrBtn.disabled = true;
+      const bookId = prefillData.id;
+      
+      // Get current form values to preserve them
+      const currentTitle = document.getElementById('book-title').value;
+      const currentAuthors = document.getElementById('book-authors').value;
+      
+      // Run OCR
+      await runOCRInBackground(bookId);
+      
+      // Reload the book to get updated values
+      const books = await getAllBooks();
+      const updatedBook = books.find(b => b.id === bookId);
+      if (updatedBook) {
+        document.getElementById('book-title').value = updatedBook.title || currentTitle;
+        document.getElementById('book-authors').value = updatedBook.authors?.join(', ') || currentAuthors;
+        document.getElementById('book-isbn').value = updatedBook.isbn || '';
+        document.getElementById('book-publisher').value = updatedBook.publisher || '';
+        document.getElementById('book-year').value = updatedBook.publishYear || '';
+        document.getElementById('book-pages').value = updatedBook.pageCount || '';
+        document.getElementById('book-notes').value = updatedBook.notes || '';
+      }
+      
+      ocrBtn.textContent = '✅ OCR Complete';
+      setTimeout(() => {
+        ocrBtn.textContent = '🔄 Re-run OCR';
+        ocrBtn.disabled = false;
+      }, 2000);
+    };
+    form.appendChild(ocrBtn);
+  }
 }
 
 document.querySelectorAll('#condition-options .checkbox-item').forEach(item => {
