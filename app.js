@@ -18,6 +18,18 @@ let capturedImages = { front: null, back: null, technical: null };
 let scannedIsbn = null;
 let editingBook = null;
 let stream = null;
+let ocrResults = { front: null, back: null, technical: null };
+
+// Run OCR on image and store result
+async function runOCROnCapture(imageData, type) {
+  if (!imageData) return;
+  try {
+    const result = await processImageWithOCR(imageData, type);
+    ocrResults[type] = result;
+  } catch (err) {
+    console.error('OCR error on capture:', err);
+  }
+}
 
 // Initialize IndexedDB
 async function initDB() {
@@ -186,6 +198,7 @@ let videoElement;
 function startCapture() {
   captureStep = 1;
   capturedImages = { front: null, back: null, technical: null };
+  ocrResults = { front: null, back: null, technical: null };
   scannedIsbn = null;
   editingBook = null;
   renderCaptureStep();
@@ -293,6 +306,22 @@ function setupFileInput(type) {
       const imageData = await fileToDataURL(file);
       const compressedData = await compressImageDataURL(imageData);
       capturedImages[type] = compressedData;
+      
+      // Run OCR immediately
+      await runOCROnCapture(compressedData, type);
+      
+      // Also run OCR on previous unprocessed images
+      if (type === 'back' && capturedImages.front && !ocrResults.front) {
+        await runOCROnCapture(capturedImages.front, 'front');
+      }
+      if (type === 'technical') {
+        if (capturedImages.front && !ocrResults.front) {
+          await runOCROnCapture(capturedImages.front, 'front');
+        }
+        if (capturedImages.back && !ocrResults.back) {
+          await runOCROnCapture(capturedImages.back, 'back');
+        }
+      }
       
       if (type === 'front') {
         captureStep = 2;
@@ -828,6 +857,22 @@ async function captureImage(type) {
   
   stopCamera();
   
+  // Run OCR immediately
+  await runOCROnCapture(imageData, type);
+  
+  // Also run OCR on previous unprocessed images
+  if (type === 'back' && capturedImages.front && !ocrResults.front) {
+    await runOCROnCapture(capturedImages.front, 'front');
+  }
+  if (type === 'technical') {
+    if (capturedImages.front && !ocrResults.front) {
+      await runOCROnCapture(capturedImages.front, 'front');
+    }
+    if (capturedImages.back && !ocrResults.back) {
+      await runOCROnCapture(capturedImages.back, 'back');
+    }
+  }
+  
   if (type === 'front') {
     captureStep = 2;
     renderCaptureStep();
@@ -1004,8 +1049,8 @@ function openDetailsForm(prefillData = {}) {
     document.getElementById('book-language').value = prefillData.language || 'en';
   }
   
-  // Auto-extract OCR from captured images
-  const doOCR = async () => {
+  // Use pre-computed OCR results
+  if (!prefillData.id && (capturedImages.technical || capturedImages.back || capturedImages.front)) {
     const isbnField = document.getElementById('book-isbn');
     const titleField = document.getElementById('book-title');
     const authorField = document.getElementById('book-authors');
@@ -1016,25 +1061,16 @@ function openDetailsForm(prefillData = {}) {
     
     let allText = '';
 
-    // Process all images and collect text
-    const imagesToProcess = [];
-    if (capturedImages.technical) imagesToProcess.push({ data: capturedImages.technical, type: 'technical' });
-    if (capturedImages.back) imagesToProcess.push({ data: capturedImages.back, type: 'back' });
-    if (capturedImages.front) imagesToProcess.push({ data: capturedImages.front, type: 'front' });
+    // Combine all OCR results
+    if (ocrResults.technical?.text) allText += `--- technical ---\n${ocrResults.technical.text}\n\n`;
+    if (ocrResults.back?.text) allText += `--- back ---\n${ocrResults.back.text}\n\n`;
+    if (ocrResults.front?.text) allText += `--- front ---\n${ocrResults.front.text}\n\n`;
 
-    for (const img of imagesToProcess) {
-      const result = await processImageWithOCR(img.data, img.type);
-      if (result && result.text) {
-        allText += `--- ${img.type} ---\n${result.text}\n\n`;
-      }
-    }
-    
-    // Show all extracted text in notes
     if (allText) {
       notesField.value = allText.substring(0, 3000);
     }
 
-    // Try to extract structured data
+    // Extract structured data from combined text
     const fullText = allText;
     const isbn = extractISBN(fullText);
     const title = extractTitle(fullText);
@@ -1049,24 +1085,6 @@ function openDetailsForm(prefillData = {}) {
     if (publisher) publisherField.value = publisher;
     if (year) yearField.value = year;
     if (pages) pagesField.value = pages;
-  };
-
-  if (!prefillData.id && (capturedImages.technical || capturedImages.back || capturedImages.front)) {
-    const form = document.getElementById('details-form');
-    const indicator = document.createElement('div');
-    indicator.id = 'ocr-indicator';
-    indicator.style.cssText = 'text-align:center;padding:10px;background:#e0f2fe;border-radius:8px;margin:10px 0;';
-    indicator.textContent = 'Extracting text from images...';
-    form.insertBefore(indicator, form.firstChild);
-
-    doOCR().then(() => {
-      const ind = document.getElementById('ocr-indicator');
-      if (ind) ind.remove();
-    }).catch(err => {
-      console.error('OCR error:', err);
-      const ind = document.getElementById('ocr-indicator');
-      if (ind) ind.textContent = 'OCR failed - you can enter details manually';
-    });
   }
   
   // Set condition selection
