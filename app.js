@@ -83,6 +83,111 @@ async function deleteBook(id) {
   });
 }
 
+// Save book immediately and run OCR in background
+async function saveBookImmediately() {
+  const bookId = generateId();
+  const book = {
+    id: bookId,
+    isbn: null,
+    title: 'New Book',
+    originalTitle: undefined,
+    authors: [],
+    originalAuthors: undefined,
+    publisher: null,
+    publishYear: null,
+    pageCount: null,
+    language: 'en',
+    originalLanguageText: undefined,
+    coverFront: capturedImages.front || undefined,
+    coverBack: capturedImages.back || undefined,
+    technicalPage: capturedImages.technical || undefined,
+    condition: 'Good',
+    notes: 'Processing OCR...',
+    acquisitionDate: undefined,
+    purchasePrice: undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ocrStatus: 'pending'
+  };
+  
+  await saveBook(book);
+  
+  // Reset for next capture
+  capturedImages = { front: null, back: null, technical: null };
+  ocrResults = { front: null, back: null, technical: null };
+  captureStep = 1;
+  
+  // Show success and go to home
+  showToast('Book saved! OCR running in background...');
+  document.getElementById('capture-modal').classList.remove('active');
+  document.querySelector('.tab[data-tab="home"]').click();
+  loadBooks();
+  
+  // Run OCR in background and update book
+  runOCRInBackground(bookId);
+}
+
+async function runOCRInBackground(bookId) {
+  try {
+    const books = await getAllBooks();
+    const book = books.find(b => b.id === bookId);
+    if (!book) return;
+    
+    let allText = '';
+    
+    // Process all captured images
+    if (book.technicalPage) {
+      const result = await processImageWithOCR(book.technicalPage, 'technical');
+      if (result?.text) allText += result.text + '\n';
+    }
+    if (book.coverBack) {
+      const result = await processImageWithOCR(book.coverBack, 'back');
+      if (result?.text) allText += result.text + '\n';
+    }
+    if (book.coverFront) {
+      const result = await processImageWithOCR(book.coverFront, 'front');
+      if (result?.text) allText += result.text + '\n';
+    }
+    
+    // Extract metadata
+    const isbn = extractISBN(allText);
+    const title = extractTitle(allText);
+    const author = extractAuthor(allText);
+    const publisher = extractPublisher(allText);
+    const year = extractYear(allText);
+    const pages = extractPages(allText);
+    
+    // Update book with extracted data
+    const updatedBook = {
+      ...book,
+      isbn: isbn || null,
+      title: title || book.title,
+      authors: author ? [author] : book.authors,
+      publisher: publisher || null,
+      publishYear: year,
+      pageCount: pages,
+      notes: allText.substring(0, 5000) || book.notes,
+      updatedAt: new Date().toISOString(),
+      ocrStatus: 'completed'
+    };
+    
+    await saveBook(updatedBook);
+    loadBooks();
+    
+  } catch (err) {
+    console.error('Background OCR error:', err);
+    // Mark as failed
+    const books = await getAllBooks();
+    const book = books.find(b => b.id === bookId);
+    if (book) {
+      book.ocrStatus = 'failed';
+      book.updatedAt = new Date().toISOString();
+      await saveBook(book);
+      loadBooks();
+    }
+  }
+}
+
 // Transliteration
 function detectNonLatin(text) {
   return /[^\u0000-\u007F]/.test(text);
@@ -307,22 +412,6 @@ function setupFileInput(type) {
       const compressedData = await compressImageDataURL(imageData);
       capturedImages[type] = compressedData;
       
-      // Run OCR immediately
-      await runOCROnCapture(compressedData, type);
-      
-      // Also run OCR on previous unprocessed images
-      if (type === 'back' && capturedImages.front && !ocrResults.front) {
-        await runOCROnCapture(capturedImages.front, 'front');
-      }
-      if (type === 'technical') {
-        if (capturedImages.front && !ocrResults.front) {
-          await runOCROnCapture(capturedImages.front, 'front');
-        }
-        if (capturedImages.back && !ocrResults.back) {
-          await runOCROnCapture(capturedImages.back, 'back');
-        }
-      }
-      
       if (type === 'front') {
         captureStep = 2;
         renderCaptureStep();
@@ -330,7 +419,8 @@ function setupFileInput(type) {
         captureStep = 3;
         renderCaptureStep();
       } else if (type === 'technical') {
-        openDetailsForm();
+        // Save book immediately and run OCR in background
+        await saveBookImmediately();
       }
     } catch (err) {
       console.error('Error processing image:', err);
@@ -857,22 +947,6 @@ async function captureImage(type) {
   
   stopCamera();
   
-  // Run OCR immediately
-  await runOCROnCapture(imageData, type);
-  
-  // Also run OCR on previous unprocessed images
-  if (type === 'back' && capturedImages.front && !ocrResults.front) {
-    await runOCROnCapture(capturedImages.front, 'front');
-  }
-  if (type === 'technical') {
-    if (capturedImages.front && !ocrResults.front) {
-      await runOCROnCapture(capturedImages.front, 'front');
-    }
-    if (capturedImages.back && !ocrResults.back) {
-      await runOCROnCapture(capturedImages.back, 'back');
-    }
-  }
-  
   if (type === 'front') {
     captureStep = 2;
     renderCaptureStep();
@@ -880,17 +954,19 @@ async function captureImage(type) {
     captureStep = 3;
     renderCaptureStep();
   } else if (type === 'technical') {
-    openDetailsForm();
+    // Save book immediately and run OCR in background
+    await saveBookImmediately();
   }
 }
 
-function skipCapture(nextStep) {
+async function skipCapture(nextStep) {
   stopCamera();
   if (nextStep === 'technical') {
     captureStep = 3;
     renderCaptureStep();
   } else if (nextStep === 'done') {
-    openDetailsForm();
+    // Save book immediately even if skipping
+    await saveBookImmediately();
   }
 }
 
