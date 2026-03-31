@@ -11,7 +11,11 @@ const LANGUAGES = {
 
 const CONDITIONS = ['New', 'Like New', 'Very Good', 'Good', 'Fair', 'Poor'];
 
+// Database and services
 let db;
+let dbService;
+let userService;
+let syncService;
 let currentTab = 'home';
 let captureStep = 1;
 let capturedImages = { front: null, back: null, technical: null };
@@ -19,6 +23,8 @@ let scannedIsbn = null;
 let editingBook = null;
 let stream = null;
 let ocrResults = { front: null, back: null, technical: null };
+let currentLibrary = null;
+let currentCollection = null;
 
 // Run OCR on image and store result
 async function runOCROnCapture(imageData, type) {

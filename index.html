@@ -551,7 +551,7 @@
     <img src="img/logo.png" alt="BookScan" class="app-logo" id="app-logo">
     <h1 id="page-title">My Collection</h1>
     <p class="subtitle" id="page-subtitle">0 books in your collection</p>
-    <p class="version">v1.1.2</p>
+    <p class="version">v2.0.0</p>
   </header>
   
   <main class="container" id="main-content">
@@ -584,13 +584,17 @@
       <span class="tab-icon">📚</span>
       <span>Collection</span>
     </div>
+    <div class="tab" data-tab="library">
+      <span class="tab-icon">🏛️</span>
+      <span>Library</span>
+    </div>
     <div class="tab" data-tab="add">
       <span class="tab-icon">📷</span>
       <span>Add Book</span>
     </div>
-    <div class="tab" data-tab="export">
-      <span class="tab-icon">📤</span>
-      <span>Export</span>
+    <div class="tab" data-tab="profile">
+      <span class="tab-icon">👤</span>
+      <span>Profile</span>
     </div>
   </div>
   
@@ -812,6 +816,7 @@
     </div>
   </div>
   
+  <script src="db-service.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
