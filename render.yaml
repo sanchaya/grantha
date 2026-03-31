@@ -1,0 +1,19 @@
+{
+  "name": "grantha-api",
+  "region": "any",
+  "repo": "https://github.com/sanchaya/grantha",
+  "branch": "main",
+  "builder": "render/render-api",
+  "buildCommand": "cd api && npm install",
+  "startCommand": "cd api && npm start",
+  "envVars": [
+    {
+      "key": "NODE_ENV",
+      "value": "production"
+    },
+    {
+      "key": "JWT_SECRET",
+      "value": "change-this-to-a-secure-random-string"
+    }
+  ]
+}
